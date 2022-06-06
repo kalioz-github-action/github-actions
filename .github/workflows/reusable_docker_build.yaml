@@ -63,7 +63,7 @@ jobs:
             ${{ env.IMAGE_PREFIX }}:${{ env.VERSION }}
 
   docker_in_docker_build:
-    name: Build & push Docker
+    name: Build & push Docker (Docker-in-docker)
     needs: docker_lint
     if: ${{ inputs.use_docker_in_docker }}
     runs-on: [self-hosted, docker-in-docker]
