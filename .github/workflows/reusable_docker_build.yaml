@@ -1,0 +1,86 @@
+name: Reusable workflow for docker build
+
+on:
+  workflow_call:
+    inputs:
+      context:
+        required: false
+        type: string
+        default: "."
+      dockerfile:
+        required: false
+        type: string
+        default: Dockerfile
+      use_docker_in_docker:
+        type: boolean
+        default: false
+    secrets:
+      DOCKERHUB_USER:
+        required: true
+      DOCKERHUB_TOKEN:
+        required: true
+
+jobs:
+  docker_lint:
+    name: Lint Dockerfile
+    runs-on: [self-hosted, docker-in-docker]
+    steps:
+      - uses: actions/checkout@v2 
+      - uses: hadolint/hadolint-action@v2.0.0
+        with:
+          dockerfile: ${{ inputs.dockerfile }}
+
+  docker_build:
+    name: Build & push Docker
+    needs: docker_lint 
+    if: ${{ ! inputs.use_docker_in_docker }}
+    runs-on: [self-hosted]
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v1
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v1 
+        with:
+          username: ${{ secrets.DOCKERHUB_USER }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: get version
+        run: echo "VERSION=$(cat docker/VERSION)" >> $GITHUB_ENV
+
+      - name: Build and push
+        uses: docker/build-push-action@v2
+        with:
+          context: docker
+          file: docker/Dockerfile
+          push: true
+          tags: |
+            ${{ env.IMAGE_PREFIX }}:latest
+            ${{ env.IMAGE_PREFIX }}:${{ env.VERSION }}
+
+  docker_in_docker_build:
+    name: Build & push Docker
+    needs: docker_lint
+    if: ${{ inputs.use_docker_in_docker }}
+    runs-on: [self-hosted, docker-in-docker]
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v1 
+        with:
+          username: ${{ secrets.DOCKERHUB_USER }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: get version
+        run: echo "VERSION=$(cat docker/VERSION)" >> $GITHUB_ENV
+
+      - name: Build and push
+        run: |
+          docker build "${{ inputs.context }}" -f "${{ inputs.dockerfile }}" -t ${{ env.IMAGE_PREFIX }}:latest -t ${{ env.IMAGE_PREFIX }}:${{ env.VERSION }}
+          docker push ${{ env.IMAGE_PREFIX }}:${{ env.VERSION }}
+          docker push ${{ env.IMAGE_PREFIX }}:latest
