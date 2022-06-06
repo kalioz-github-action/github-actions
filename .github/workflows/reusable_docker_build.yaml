@@ -11,6 +11,9 @@ on:
         required: false
         type: string
         default: Dockerfile
+      image_prefix:
+        required: true
+        type: string
       use_docker_in_docker:
         type: boolean
         default: false
@@ -59,8 +62,8 @@ jobs:
           file: ${{ inputs.dockerfile }}
           push: true
           tags: |
-            ${{ env.IMAGE_PREFIX }}:latest
-            ${{ env.IMAGE_PREFIX }}:${{ env.VERSION }}
+            ${{ inputs.image_prefix }}:latest
+            ${{ inputs.image_prefix }}:${{ env.VERSION }}
 
   docker_in_docker_build:
     name: Build & push Docker (Docker-in-docker)
@@ -81,6 +84,6 @@ jobs:
 
       - name: Build and push
         run: |
-          docker build "${{ inputs.context }}" -f "${{ inputs.dockerfile }}" -t ${{ env.IMAGE_PREFIX }}:latest -t ${{ env.IMAGE_PREFIX }}:${{ env.VERSION }}
-          docker push ${{ env.IMAGE_PREFIX }}:${{ env.VERSION }}
-          docker push ${{ env.IMAGE_PREFIX }}:latest
+          docker build "${{ inputs.context }}" -f "${{ inputs.dockerfile }}" -t ${{ inputs.image_prefix }}:latest -t ${{ inputs.image_prefix }}:${{ env.VERSION }}
+          docker push ${{ inputs.image_prefix }}:${{ env.VERSION }}
+          docker push ${{ inputs.image_prefix }}:latest
