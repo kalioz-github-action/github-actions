@@ -1,0 +1,55 @@
+name: 'Package and publish a Helm Chart to Artifactory'
+description: "Package and publish the specified helm chart on an artifactory server."
+inputs:
+  folder:
+    description: "folder containing the helm chart."
+    required: false
+    default: "."
+  chartmuseum_url:
+    description: chartmuseum repository on which the chart should be pushed.
+    required: true
+  helm_version:
+    description: "helm version to install; if unset it will not be installed in this action and should be installed in a previous step. default to '3.8.0'"
+    required: false
+    default: "3.8.0"
+runs:
+  using: "composite"
+  steps:
+  - name: Check parameters
+    shell: bash
+    run: |
+      if [ ! -d "${{ inputs.folder }}" ]; then
+        echo "ERROR: 'folder' isn't pointing to a folder. current value: '${{ inputs.folder }}'."
+        exit 1
+      fi
+
+  - name: Install Helm
+    if: inputs.helm_version != ''
+    uses: azure/setup-helm@v2.1
+    with:
+      version: ${{ inputs.helm_version }}
+
+  - name: Lint Chart
+    shell: bash
+    run: helm lint "${{ inputs.folder }}" ${{ inputs.lint_options }}
+
+  - name: Package Chart
+    id: package
+    shell: bash
+    run: |
+      helm package "${{ inputs.folder }}"
+
+      CHART_NAME=$(helm show chart "${{ inputs.folder }}" | grep -Po '(?<=^name: ).*')
+      CHART_VERSION=$(helm show chart "${{ inputs.folder }}" | grep -Po '(?<=^version: ).*')
+
+      echo "::set-output name=chart_file::${CHART_NAME}-${CHART_VERSION}.tgz"
+
+  - name: Publish the Chart
+    id: publish
+    shell: bash
+    run: |
+      curl -XPOST --data-binary "@${{ steps.package.outputs.chart_file }}" "${{ inputs.chartmuseum_url }}/api/charts"
+
+  - name: Cleanup
+    shell: bash
+    run: rm -f "${{ steps.package.outputs.chart_file }}"
